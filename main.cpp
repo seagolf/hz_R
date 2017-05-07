@@ -60,11 +60,18 @@ bool sendQueryRequest( CURL *curl)
     }
 
     //url
-    curl_easy_setopt(curl, CURLOPT_URL, \
-            "http://60.205.212.99/squirrel/swagger-ui.html#!/DeviceController/apIntervalUsingPOST"); 
+    //curl_easy_setopt(curl, CURLOPT_URL, \
+            //"http://60.205.212.99/squirrel/swagger-ui.html#!/DeviceController/apIntervalUsingPOST"); 
     
+     struct curl_slist *headers = NULL;
+     headers = curl_slist_append(headers, "Accept: */*");
+
+     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+     curl_easy_setopt(curl, CURLOPT_URL, \
+            //"http://60.205.212.99/squirrel/swagger-ui.html#!/DeviceController/apInterval?apMacAddr=AB:CD:EF:FE:DC:BA"); 
+            "http://60.205.212.99/squirrel/v1/devices/ap_interval?apMacAddr=FC%3AF5%3A28%3A84%3A81%3AAA"); 
     //post data
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS,postthis);
+    //curl_easy_setopt(curl, CURLOPT_POSTFIELDS,postthis);
     //if we don't provide POSTFIELDSIZE, libcurl will strlen() by itself 
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, postthis.length());
          
@@ -107,7 +114,7 @@ bool sendQueryRequest( CURL *curl)
     
              
                                              
-        printf("%s\n",response.memory);
+        printf("%lu bytes received\n",(long) response.size);
         char *iptablesEntry;
 
         //get each iptables entry, format:  AB:CD:EF:00:00:00-1
