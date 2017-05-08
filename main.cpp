@@ -58,23 +58,13 @@ bool sendQueryRequest( CURL *curl)
         cout << " Error curl instance has not been created" << endl;
         return false;
     }
-
-    //url
-    //curl_easy_setopt(curl, CURLOPT_URL, \
-            //"http://60.205.212.99/squirrel/swagger-ui.html#!/DeviceController/apIntervalUsingPOST"); 
     
      struct curl_slist *headers = NULL;
      headers = curl_slist_append(headers, "Accept: */*");
 
      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
      curl_easy_setopt(curl, CURLOPT_URL, \
-            //"http://60.205.212.99/squirrel/swagger-ui.html#!/DeviceController/apInterval?apMacAddr=AB:CD:EF:FE:DC:BA"); 
-            "http://60.205.212.99/squirrel/v1/devices/ap_interval?apMacAddr=FC%3AF5%3A28%3A84%3A81%3AAA"); 
-    //post data
-    //curl_easy_setopt(curl, CURLOPT_POSTFIELDS,postthis);
-    //if we don't provide POSTFIELDSIZE, libcurl will strlen() by itself 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, postthis.length());
-         
+            "http://60.205.212.99/squirrel/v1/devices/ap_interval?apMacAddr=FC%3AF5%3A28%3AD4%3A81%3AAA"); 
     
     //register callback
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, IptablesOperateCallback);
@@ -111,9 +101,6 @@ bool sendQueryRequest( CURL *curl)
             }
         }
 
-    
-             
-                                             
         printf("%lu bytes received\n",(long) response.size);
         char *iptablesEntry;
 
@@ -134,18 +121,59 @@ bool sendQueryRequest( CURL *curl)
             string operation = (opCodeStr == "1") ? "ACCEPT":"DROP" ;
             cout<< "---> action:" << operation << endl;
 
+#if 0
             string cmd ="sudo iptables  -C FORWARD -m mac --mac-source ";
             cmd.append(macAddr);
             cmd.append(" -j ");
             cmd.append(operation);
 
             cout << "cmd: " << cmd << endl;
+#endif
 
-
-            if (0> system (cmd.c_str()))
+            //find sourc mac in configure file
+            int lineNum  = 0;
+            string line;
+            bool found = false;
+            ifstream iptablesConfigFile;
+            iptablesConfigFile.open(IPTABLES_FILE, ifstream::in | ifstream::out);
+            if(iptablesConfigFile.is_open())
             {
-                cout << "iptables failed" << endl;
+                
+                while(getline(iptablesConfigFile, line))
+                {
+                    lineNum++;
+                    if(line.find(macAddr, 0) != string::npos)
+                    {
+                        
+                        found = true;
+                        cout << "found in IPTABLES_FILE" << endl;
+                        size_t actionPosition;
+                        actionPosition = line.find("-j", 0);
+                        if(actionPosition != string::npos)
+                        {
+                            line.replace(actionPosition+3, operation.length(), operation);
+                                    
+                        }
+
+                    
+                    }
+                
+                    
+                }
+                if( !found)
+                {
+                    cout << "not found, it is a new rule" << endl;
+                    //append a new rule
+                }
             }
+
+            iptablesConfigFile.close();
+            
+
+            //if (0> system (cmd.c_str()))
+            //{
+                //cout << "iptables failed" << endl;
+            //}
 
             iptablesEntry = strtok(NULL, ",");
 
@@ -169,8 +197,8 @@ int main()
     
     if (!ifstream(IPTABLES_FILE, ifstream::in))
     {
-        ofstream iptableConfigFile(IPTABLES_FILE);
-        if (! iptableConfigFile)
+        ofstream iptablesConfigFile(IPTABLES_FILE);
+        if (! iptablesConfigFile)
         {
             cout << "File could not be created" << endl;
             return false;
@@ -204,49 +232,10 @@ int main()
 
         sleep(5);
     }
-#if 0
-    else
-    {
-
-        char response[] = "AB:CD:EF:00:00:00-1,00:00:00:AB:CD:EF-0";
-        char *iptablesEntry;
-
-        //get each iptables entry, format:  AB:CD:EF:00:00:00-1
-        iptablesEntry = strtok(response, ",");
-        while(iptablesEntry != NULL)
-        {
-            string tableString(iptablesEntry);
-
-            cout << "iptables Entry:" << tableString << endl; 
-
-            std::size_t dashPosition = tableString.find("-");
-            string macAddr = tableString.substr(0, dashPosition);
-
-            cout<< "---> mac: " << macAddr << endl;
-
-            string opCodeStr = tableString.substr(dashPosition+1);
-            string operation = (opCodeStr == "1") ? "ACCEPT":"DROP" ;
-            cout<< "---> action:" << operation << endl;
-
-            string cmd ="sudo iptables  -C FORWARD -m mac --mac-source ";
-            cmd.append(macAddr);
-            cmd.append(" -j ");
-            cmd.append(operation);
-
-            cout << "cmd: " << cmd << endl;
 
 
-            if (0> system (cmd.c_str()))
-            {
-                cout << "iptables failed" << endl;
-            }
-
-            iptablesEntry = strtok(NULL, ",");
-
-
-        }
-    }
-#endif
+    //cleanup
+    curl_easy_cleanup(curl);
 
 
 
