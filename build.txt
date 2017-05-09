@@ -1,0 +1,1 @@
+g++ -o router main2.cpp routerInterface.cpp routerInterface.h -l curl -I ./
