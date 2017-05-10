@@ -96,8 +96,20 @@ bool RouterInterface::SendQueryRequest(string apMacAddr)
     }
 
     CURLcode res;
-    string url("http://60.205.212.99/squirrel/v1/devices/ap_interval?apMacAddr=FC%3AF5%3A28%3AD4%3A81%3AAA");
-    //url.append(apMacAddr);
+    
+    string url("http://60.205.212.99/squirrel/v1/devices/ap_interval?apMacAddr=");
+
+    for(int i = 0; i < 18; i+=3)
+    {
+        string tmpString = apMacAddr.substr(i,2);
+        url.append(tmpString);
+
+        if( i < 15)
+        {
+            url.append("%3A");    
+        }
+    
+    }
 
     MemoryStruct getResponse;
     getResponse.memory = (char*) malloc(1);  // will be grown as needed by the realloc above 
@@ -131,6 +143,14 @@ bool RouterInterface::SendQueryRequest(string apMacAddr)
 
         if(CURLE_OK == res) 
         {
+            long response_code;
+            curl_easy_getinfo(pfCurl, CURLINFO_RESPONSE_CODE, &response_code);
+
+            if( response_code != 200)
+            {
+                cout <<" Error! response code: " << (int) response_code << endl;
+            }
+
             char *ct;
              //ask for the content-type  
             res = curl_easy_getinfo(pfCurl, CURLINFO_CONTENT_TYPE, &ct);
@@ -204,25 +224,32 @@ bool RouterInterface::HandleIptables(MemoryStruct getResponse)
     }
 }
 
-bool RouterInterface::SendNewDevicePost(std::string devMacAddr)
+bool RouterInterface::SendNewDevicePost(string jsonObj)
 {
     
 
     CURLcode res;
     string url("http://60.205.212.99/squirrel/v1/devices/add_device_to_user");
-    //url.append(apMacAddr);
-
-
-
-    curl_easy_setopt(pfCurl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(pfCurl, CURLOPT_POSTFIELDS, "{ \
+    string tmpjsonObj( "{ \
             \"apMacAddr\": \"FC:F5:28:D4:81:AA\", \
             \"deviceMacAddr\" : \"00:00:00:DD:EE:FF\", \
-            \"hostname\" : \"hzspec\", \
+            \"hostName\" : \"hzspec\", \
             \"ip\" : \"192.168.1.2\", \
             \"os\" : \"mac\", \
             \"vendor\" : \"apple\" \
             }");
+
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "Accept: application/json");
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    headers = curl_slist_append(headers, "charsets: utf-8");
+
+
+    curl_easy_setopt(pfCurl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(pfCurl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(pfCurl, CURLOPT_POST, 1L);
+    curl_easy_setopt(pfCurl, CURLOPT_POSTFIELDS, tmpjsonObj.c_str()); 
+    //curl_easy_setopt(pfCurl, CURLOPT_VERBOSE, 1L);
 
 
     //register callback
@@ -244,6 +271,14 @@ bool RouterInterface::SendNewDevicePost(std::string devMacAddr)
 
         if(CURLE_OK == res) 
         {
+            long response_code;
+            curl_easy_getinfo(pfCurl, CURLINFO_RESPONSE_CODE, &response_code);
+
+            if( response_code != 200)
+            {
+                cout <<" Error! response code:"  << (int) response_code << endl;
+            }
+
             char *ct;
              //ask for the content-type  
             res = curl_easy_getinfo(pfCurl, CURLINFO_CONTENT_TYPE, &ct);

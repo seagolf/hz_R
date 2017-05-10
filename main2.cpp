@@ -46,9 +46,17 @@ int main()
 
     }
 
-    theRouter()->SendNewDevicePost("hello");
-//    theRouter()->Run();
+    //tmp for test 
+#if 0
+    while (1)
+    {
+        theRouter()->SendNewDevicePost("hello");
 
+        sleep(3);
+    }
+#endif
+    
+    theRouter()->Run();
 
     return 0;
 

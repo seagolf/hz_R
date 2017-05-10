@@ -13,6 +13,17 @@ typedef struct
 }MemoryStruct;
 
 
+//typedef struct
+//{
+    //string apMacAddr;
+    //string deviceMacAddr;
+    //string hostName;
+    //string ipAddr;
+    //string os;
+    //string vendor;
+//}AddNewDevicePost_T;
+
+
 class RouterInterface
 {
 
