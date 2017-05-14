@@ -52,7 +52,7 @@ void RouterInterface::Run()
     while (!bfShutdown)
     {
 
-        string apMacAddr("FC\%3AF5\%3A28\%3AD4\%3A81\%3AAA");
+        string apMacAddr("FC:F5:28:D4:81:AA");
 
         //send http GET  and handle reponse message
         if (!SendQueryRequest(apMacAddr))
