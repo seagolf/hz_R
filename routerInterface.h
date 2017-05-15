@@ -34,7 +34,10 @@ public:
     bool SendNewDevicePost(std::string devMacAddr);
 
     void Run();
-    bool HandleIptables(MemoryStruct getResponse);
+    bool HandleQueryResponse(MemoryStruct getResponse);
+
+    bool UpdateIptables(std::string macAddr, std::string opCode);
+
     static RouterInterface * pfSingleton;
 
 private:

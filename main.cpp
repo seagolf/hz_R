@@ -1,244 +1,63 @@
-#include <iostream>
+#include <string>
+#include <unistd.h>
 #include <fstream>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <curl/curl.h>
+#include <iostream>
 
+#include "routerInterface.h"
 
-#define DELIM ","
-#define SUB_DELIM "-"    
-#define IPTABLES_FILE "/tmp/iptables.txt"
 using namespace std;
 
 
-typedef struct {
-  char *memory;
-  size_t size;
-}MemoryStruct;
- 
-static size_t
-IptablesOperateCallback(void *contents, size_t size, size_t nmemb, void *userp)
+void restoreExistedRuels()
 {
-  size_t realsize = size * nmemb;
-  MemoryStruct *mem = (MemoryStruct *)userp;
- 
-  mem->memory = (char *) realloc(mem->memory, mem->size + realsize + 1);
-  if(mem->memory == NULL) {
-      /* out of memory! */ 
-      printf("not enough memory (realloc returned NULL)\n");
-      return 0;
-    }
- 
-  memcpy(&(mem->memory[mem->size]), contents, realsize);
-  mem->size += realsize;
-  mem->memory[mem->size] = 0;
- 
-  return realsize;
+
+    string restoreCmd (" sudo iptables-restore ");
+    restoreCmd.append(IPTABLESCONFIGFILE);
+    system( restoreCmd.c_str());
 }
 
 
-bool sendQueryRequest( CURL *curl)
+RouterInterface * theRouter()
 {
 
-    //get https response string
-
-    CURLcode res;
-
-    MemoryStruct response;
-
-    response.memory = (char*) malloc(1);  /* will be grown as needed by the realloc above */ 
-    response.size = 0;    /* no data at this point */ 
-
-    string postthis("apMacAddr=AB:CD:EF:FE:DC:BA");
-
-    if(curl == NULL)
+    if(RouterInterface::pfSingleton == 0)
     {
-        cout << " Error curl instance has not been created" << endl;
-        return false;
+        return NULL;
     }
-    
-     struct curl_slist *headers = NULL;
-     headers = curl_slist_append(headers, "Accept: */*");
-
-     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-     curl_easy_setopt(curl, CURLOPT_URL, \
-            "http://60.205.212.99/squirrel/v1/devices/ap_interval?apMacAddr=FC%3AF5%3A28%3AD4%3A81%3AAA"); 
-    
-    //register callback
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, IptablesOperateCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *) &response);
-    
-    //some servers don't like requests that are made without a user-agent field, so we provide one  
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
-
-    res = curl_easy_perform(curl);
-
-    // check for errors
-    if(res != CURLE_OK)
-    {
-        cout<<"ERROR: curl_easy_perform failed" << curl_easy_strerror(res) << endl;
-    }
-    else
-    {
-        //Now, our chunk.memory points to a memory block that is chunk.size
-        //bytes big and contains the remote file.
-        
-        if(CURLE_OK == res) 
-        {
-            char *ct;
-            /* ask for the content-type */ 
-            res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &ct);
-
-            if((CURLE_OK == res) && ct)
-            {
-                printf("We received Content-Type: %s\n", ct);
-            }
-            else
-            {
-                cout << "response: " << res << endl;
-            }
-        }
-
-        printf("%lu bytes received\n",(long) response.size);
-        char *iptablesEntry;
-
-        //get each iptables entry, format:  AB:CD:EF:00:00:00-1
-        iptablesEntry = strtok(response.memory, ",");
-        while(iptablesEntry != NULL)
-        {
-            string tableString(iptablesEntry);
-
-            cout << "iptables Entry:" << tableString << endl; 
-
-            std::size_t dashPosition = tableString.find("-");
-            string macAddr = tableString.substr(0, dashPosition);
-
-            cout<< "---> mac: " << macAddr << endl;
-
-            string opCodeStr = tableString.substr(dashPosition+1);
-            string operation = (opCodeStr == "1") ? "ACCEPT":"DROP" ;
-            cout<< "---> action:" << operation << endl;
-
-#if 0
-            string cmd ="sudo iptables  -C FORWARD -m mac --mac-source ";
-            cmd.append(macAddr);
-            cmd.append(" -j ");
-            cmd.append(operation);
-
-            cout << "cmd: " << cmd << endl;
-#endif
-
-            //find sourc mac in configure file
-            int lineNum  = 0;
-            string line;
-            bool found = false;
-            ifstream iptablesConfigFile;
-            iptablesConfigFile.open(IPTABLES_FILE, ifstream::in | ifstream::out);
-            if(iptablesConfigFile.is_open())
-            {
-                
-                while(getline(iptablesConfigFile, line))
-                {
-                    lineNum++;
-                    if(line.find(macAddr, 0) != string::npos)
-                    {
-                        
-                        found = true;
-                        cout << "found in IPTABLES_FILE" << endl;
-                        size_t actionPosition;
-                        actionPosition = line.find("-j", 0);
-                        if(actionPosition != string::npos)
-                        {
-                            line.replace(actionPosition+3, operation.length(), operation);
-                                    
-                        }
-
-                    
-                    }
-                
-                    
-                }
-                if( !found)
-                {
-                    cout << "not found, it is a new rule" << endl;
-                    //append a new rule
-                }
-            }
-
-            iptablesConfigFile.close();
-            
-
-            //if (0> system (cmd.c_str()))
-            //{
-                //cout << "iptables failed" << endl;
-            //}
-
-            iptablesEntry = strtok(NULL, ",");
-
-
-        }
-
-
-        if (0> system ("sudo iptables -L"))
-        {
-            cout << "iptables failed" << endl;
-        }
-    }
-
+    return RouterInterface::pfSingleton;
 }
-
 
 int main()
 {
-
-    //create a file to store iptables rules
-    
-    if (!ifstream(IPTABLES_FILE, ifstream::in))
+    //restore existed iptables rules
+    ifstream existedRules (IPTABLESCONFIGFILE, ifstream::in);
+    if(existedRules.good())
     {
-        ofstream iptablesConfigFile(IPTABLES_FILE);
-        if (! iptablesConfigFile)
-        {
-            cout << "File could not be created" << endl;
-            return false;
-        }
-         cout << "Iptables Configuratoin File is created" << endl;
-    }
-    else
-    {
-        //restore previous iptables
-        string restoreCmd (" sudo iptables-restore ");
-        restoreCmd.append(IPTABLES_FILE);
-        system( restoreCmd.c_str());
-        
+        restoreExistedRuels();
     }
     
-    //init curl handle instance
-    CURL * curl = NULL;
+    RouterInterface::SingletonInit();
 
-    curl_global_init(CURL_GLOBAL_ALL);
+    if (NULL == theRouter())
+    {
+        cout << "FATAL RouterInterface has not been initialized" << endl;
+        return -1;
 
-    //init the curl session 
-    curl = curl_easy_init();
+    }
 
+    //tmp for test 
+#if 0
     while (1)
     {
-    
-        if (!sendQueryRequest(curl))
-        {
-            cout << "sendQueryRequest failed" <<endl;
-        }
+        theRouter()->SendNewDevicePost("hello");
 
-        sleep(5);
+        sleep(3);
     }
+#endif
+    
+    theRouter()->Run();
 
-
-    //cleanup
-    curl_easy_cleanup(curl);
-
-
+    return 0;
 
 }
-
-

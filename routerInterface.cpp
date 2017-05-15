@@ -3,6 +3,8 @@
 #include <cstring>
 #include <string>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 
 #include "routerInterface.h"
@@ -163,16 +165,16 @@ bool RouterInterface::SendQueryRequest(string apMacAddr)
 
         printf("%lu bytes received\n",(long) getResponse.size);
 
-        HandleIptables (getResponse);
+        HandleQueryResponse (getResponse);
     }
 
 }
 
-bool RouterInterface::HandleIptables(MemoryStruct getResponse)
+bool RouterInterface::HandleQueryResponse(MemoryStruct getResponse)
 {
 
     //clean all iptables for avoid duplicated rules
-    system("sudo iptables -F");
+    //system("sudo iptables -F");
     char *iptablesEntry;
 
     //get each iptables entry, format:  AB:CD:EF:00:00:00-1
@@ -193,35 +195,27 @@ bool RouterInterface::HandleIptables(MemoryStruct getResponse)
         cout<< "---> action:" << operation << endl;
 
 
-        //update iptables configuration file
+        if(! UpdateIptables(macAddr, operation))
 
-        string cmd ("sudo iptables -A FORWARD -m mac --mac-source ");
-        cmd.append(macAddr);
-        cmd.append(" -j ");
-        cmd.append(operation);
+        {
+            cout << " UpdateIptables failed: " << macAddr << " opCode: " << operation << endl;
+        
+        }
 
-        cout <<" cmd : " << cmd << endl;
-
-        system(cmd.c_str());
-
-        //updateIptables(macAddr, operation);
 
         iptablesEntry = strtok(NULL, ",");
 
 
     }
 
-    //restore iptables configruation;
-    string restoreCmd (" sudo iptables-save > ");
-    restoreCmd.append(IPTABLESCONFIGFILE);
-    system( restoreCmd.c_str());
 
-    cout << "restorecmd :" << restoreCmd << endl;
+#ifndef NDEBUG 
 
     if (0> system ("sudo iptables -L"))
     {
         cout << "iptables failed" << endl;
     }
+#endif
 }
 
 bool RouterInterface::SendNewDevicePost(string jsonObj)
@@ -272,6 +266,7 @@ bool RouterInterface::SendNewDevicePost(string jsonObj)
         if(CURLE_OK == res) 
         {
             long response_code;
+        
             curl_easy_getinfo(pfCurl, CURLINFO_RESPONSE_CODE, &response_code);
 
             if( response_code != 200)
@@ -289,4 +284,90 @@ bool RouterInterface::SendNewDevicePost(string jsonObj)
             }
         }
     }
+}
+
+bool RouterInterface::UpdateIptables(string macAddr, string opCode) 
+{
+    ifstream iptablesFile;
+    string iptablesEntry;
+
+    iptablesFile.open(IPTABLESCONFIGFILE, std::ifstream::in);
+
+    bool bFound = false;
+    bool bNeedUpdate = false;
+
+    while (getline(iptablesFile, iptablesEntry))
+
+    {
+
+        //a exist device mac
+        if (string::npos != iptablesEntry.find(macAddr))
+        {
+            size_t actionPos = iptablesEntry.find("-j ");   
+            if(string::npos != actionPos)
+            {
+                actionPos +=3;
+                string prevAction = iptablesEntry.substr(actionPos);
+
+                if(prevAction != opCode)
+                {
+                    ostringstream replaceCmd;
+                    replaceCmd << "sudo iptables -C FORWARD -m mac --mac-source ";
+                    replaceCmd << macAddr << "-j " << opCode;
+
+#ifndef NDEBUG
+                    cout << replaceCmd.str() << endl;
+#endif
+                    system(replaceCmd.str().c_str());
+
+                    bFound = true;
+                    bNeedUpdate = true;
+                    break;
+
+
+                }
+                else
+                {
+                
+                    bFound = true;
+                    bNeedUpdate = false;
+                    cout <<iptablesEntry << " : entry already exists!" << endl;
+                }
+
+            }
+            else
+            {
+            
+                cout << " current rule error!" << endl;
+            
+            }
+
+        }
+
+    }
+
+    //a new entry
+    if( !bFound )
+    {
+        ostringstream addNewEntry;
+        addNewEntry << "sudo iptables -A FORWARD -m mac --mac-source " << macAddr << " -j "  << opCode  << endl;
+
+        system(addNewEntry.str().c_str());
+
+        bNeedUpdate = true;
+
+    
+    }
+    if (bNeedUpdate)
+    {
+        ostringstream saveCmd;
+        saveCmd << "sudo iptables-save > " << IPTABLESCONFIGFILE ;
+
+        system(saveCmd.str().c_str());
+     }
+    
+
+
+    return true;
+
 }
